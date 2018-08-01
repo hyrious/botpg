@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Bot API Playground</title>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="shortcut icon" href="https://core.telegram.org/favicon.ico" type="image/x-icon">
+<body>
+
+<main>
+  <h1>Bot API Playground</h1>
+  <div>
+    <div>
+      <label>token <input id="token" pattern="\d{9}:[\w-]{35}" required></label>
+      <label>method
+        <select id="method">
+          <option selected>getMe</option>
+        </select>
+      </label>
+    </div>
+    <label>input</label>
+    <div id="input">{}</div>
+  </div>
+  <div class="flex">
+    <button id="post" disabled>POST</button>
+    <button id="save" disabled>SAVE</button>
+  </div>
+  <div>
+    <details open>
+      <summary>output <span id="loading">loading...</span></summary>
+      <pre><code id="output" class="json"></code></pre>
+    </details>
+  </div>
+  <div id="history"></div>
+</main>
+
+<script>
+  (async () => {
+    "use strict";
+    const importCss = (...urls) => {
+      for (const url of urls) {
+        const link = document.createElement('link');
+        link.href = url;
+        link.rel = 'stylesheet';
+        document.head.appendChild(link);
+      }
+    };
+    importCss('https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/6.0.0/sanitize.min.css');
+    importCss('https://fonts.googleapis.com/css?family=Alegreya|Alegreya+Sans');
+    importCss('https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/grayscale.min.css');
+    const importStyle = (cssText) => {
+      const style = document.createElement('style');
+      style.appendChild(document.createTextNode(cssText));
+      document.head.appendChild(style);
+    };
+    importStyle(`
+      body{font-family:Alegreya Sans,sans-serif;max-width:1024px;margin:0 auto}
+      h1,h2,h3,h4,h5,h6{font-weight:normal;font-family:Alegreya,serif}
+      main{margin:0 24px}input,select{border:0;outline:0;border-bottom:2px solid}
+      input,select,option{font-family:Iosevka,monospace}#token{width:45ex}#method{width:32ex}
+      button{background-color:white;border:2px solid;outline:0;font-family:Iosevka,monospace}
+      button:enabled:active{background-color:black;color:white;border-color:black}
+      @media(max-width:768px){label,#token,#method{display:block;width:100%;margin:8px 0}}
+      pre{max-width:100%;overflow-x:auto;overflow-y:hidden;margin-top:0}pre,code{white-space:pre-wrap}
+      pre,code,summary{font-family:Iosevka,monospace}details{margin-top:1em}
+      summary{user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      summary:focus{outline:0}#input{width:100%;height:2em;margin:8px 0}
+      .flex{display:flex}.flex>*{width:100%;margin:4px}
+    `);
+    const importJs = async (...urls) => Promise.all(urls.map(url => new Promise(resolve => {
+      const script = document.createElement('script');
+      script.onload = () => resolve(script);
+      script.src = url;
+      document.body.appendChild(script);
+    })));
+    const preserveValues = (...elements) => {
+      for (const element of elements) {
+        element.addEventListener('change', function (event) {
+          localStorage[element.id] = this.value;
+        });
+        if (localStorage[element.id]) {
+          element.value = localStorage[element.id];
+        }
+      }
+    };
+    const tokenElement = document.getElementById('token');
+    const methodElement = document.getElementById('method');
+    const inputElement = document.getElementById('input');
+    const postElement = document.getElementById('post');
+    const saveElement = document.getElementById('save');
+    const loadingElement = document.getElementById('loading');
+    const outputElement = document.getElementById('output');
+    const historyElement = document.getElementById('history');
+    const methods = `getUpdates setWebhook deleteWebhook getWebhookInfo sendMessage
+    forwardMessage sendPhoto sendAudio sendDocument sendVideo sendAnimation
+    sendVoice sendVideoNote sendMediaGroup sendLocation editMessageLiveLocation
+    stopMessageLiveLocation sendVenue sendContact sendChatAction getUserProfilePhotos
+    getFile kickChatMember unbanChatMember restrictChatMember promoteChatMember
+    exportChatInviteLink setChatPhoto deleteChatPhoto setChatTitle setChatDescription
+    pinChatMessage unpinChatMessage leaveChat getChat getChatAdministrators getChatMembersCount
+    getChatMember setChatStickerSet deleteChatStickerSet answerCallbackQuery editMessageText
+    editMessageCaption editMessageMedia editMessageReplyMarkup deleteMessage sendSticker
+    getStickerSet uploadStickerFile createNewStickerSet addStickerToSet setStickerPositionInSet
+    deleteStickerFromSet answerInlineQuery sendInvoice answerShippingQuery answerPreCheckoutQuery
+    setPassportDataErrors sendGame setGameScore getGameHighScores`.split(/\s+/);
+    for (const method of methods) {
+      const option = document.createElement('option');
+      option.textContent = method;
+      methodElement.appendChild(option);
+    }
+    preserveValues(tokenElement);
+    await importJs(
+      'https://cdnjs.cloudflare.com/ajax/libs/axios/0.18.0/axios.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/qs/6.5.2/qs.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/ace/1.3.3/ace.js');
+    const editor = ace.edit(inputElement, {
+      mode: 'ace/mode/json',
+      theme: 'ace/theme/textmate',
+      tabSize: 2,
+      wrap: true,
+      showPrintMargin: false,
+      maxLines: 30,
+      minLines: 2
+    });
+    const isJson = (str) => {
+      try {
+        JSON.parse(str);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    };
+    localStorage['input'] = localStorage['input'] || '{}';
+    editor.setValue(localStorage['input'], -1);
+    editor.on('change', function () {
+      if (isJson(editor.getValue())) {
+        localStorage['input'] = editor.getValue();
+        postElement.disabled = false;
+      } else {
+        postElement.disabled = true;
+      }
+    });
+    postElement.addEventListener('click', async function (event) {
+      if (!isJson(editor.getValue())) return;
+      const token = tokenElement.value;
+      if (!token.match(tokenElement.pattern)) return;
+      const method = methodElement.value;
+      if (localStorage[method]) {
+        outputElement.textContent = localStorage[method];
+        hljs.highlightBlock(outputElement);
+      }
+      outputElement.style.opacity = .5;
+      outputElement.style.userSelect = 'none';
+      loadingElement.style.display = 'initial';
+      const url = 'https://api.telegram.org/bot' + token + '/' + method;
+      try {
+        const { data } = await axios.post(url, JSON.parse(editor.getValue()));
+        console.log(data);
+        outputElement.textContent = JSON.stringify(data, null, '  ');
+        saveElement.disabled = false;
+        if (method === 'getUpdates' && data.ok) {
+          const max_id = Math.max(...data.result.map(_ => _.update_id));
+          if (Number.isFinite(max_id)) {
+            editor.setValue(JSON.stringify({ offset: max_id + 1 }, null, 2), -1);
+          }
+        }
+      } catch (error) {
+        const text = JSON.stringify({ [error.name]: error.message }, null, '  ');
+        outputElement.textContent = text;
+        saveElement.disabled = true;
+      }
+      loadingElement.style.display = 'none';
+      hljs.highlightBlock(outputElement);
+      localStorage[method] = outputElement.textContent;
+      outputElement.style.opacity = 1;
+      outputElement.style.userSelect = 'auto';
+    });
+    const save = (text) => {
+      const details = document.createElement('details');
+      const summary = document.createElement('summary');
+      const pre = document.createElement('pre');
+      const code = document.createElement('code');
+      const button = document.createElement('button');
+      code.classList.add('json');
+      code.textContent = text;
+      hljs.highlightBlock(code);
+      summary.textContent = Qs.stringify(JSON.parse(text), { encode: false, delimiter: ' ' });
+      pre.style.marginTop = 0;
+      button.textContent = 'X';
+      summary.style.position = 'relative';
+      button.style.position = 'absolute';
+      button.style.right = 0;
+      button.style.borderWidth = 0;
+      pre.appendChild(code);
+      summary.appendChild(button);
+      details.appendChild(summary);
+      details.appendChild(pre);
+      historyElement.appendChild(details);
+      button.onclick = () => historyElement.removeChild(details);
+    };
+    if (localStorage['history']) {
+      const history = JSON.parse(localStorage['history']);
+      for (const text of history) save(text);
+    } else {
+      localStorage['history'] = '[]';
+    }
+    saveElement.addEventListener('click', function (event) {
+      const text = outputElement.textContent;
+      const history = JSON.parse(localStorage['history']);
+      history.push(text);
+      localStorage['history'] = JSON.stringify(history);
+      save(text);
+    });
+    loadingElement.style.display = 'none';
+    postElement.disabled = false;
+    console.log('ready.');
+  })();
+</script>
