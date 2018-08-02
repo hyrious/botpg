@@ -5,26 +5,31 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="shortcut icon" href="https://core.telegram.org/favicon.ico" type="image/x-icon">
+<base target="_blank">
 <body>
 
 <main>
   <h1>Bot API Playground</h1>
   <div>
-    <div>
+    <div class="flex response">
       <label>token <input id="token" pattern="\d{9}:[\w-]{35}" required></label>
       <label>method
         <select id="method">
           <option selected>getMe</option>
         </select>
       </label>
-      <code class="storage">storage: <output id="storage">0</output> / 5 MB</code>
+      <div class="label">storage
+        <div class="storage center">
+          <code><output id="storage">0</output>&nbsp;/ 5 MB</code>
+        </div>
+      </div>
     </div>
-    <label>input</label>
-    <div id="input">{}</div>
+    <label class="m4">input</label>
+    <div class="m4"><div id="input">{}</div></div>
   </div>
   <div class="flex">
-    <button id="post" disabled>POST</button>
-    <button id="save" disabled>SAVE</button>
+    <button id="post" class="m4" disabled>POST</button>
+    <button id="save" class="m4" disabled>SAVE</button>
   </div>
   <div>
     <details open>
@@ -36,10 +41,10 @@
   <div id="footer">
     <p>
       API Document:
-      <a href="https://core.telegram.org/bots/api">https://core.telegram.org/bots/api</a><br>
+      <a href="https://core.telegram.org/bots/api">core.telegram.org/bots/api</a><br>
       This page is hosted at
-      <a href="https://github.com/hyrious/botpg">https://github.com/hyrious/botpg</a>.<br>
-      Disclaimer: I promise not stealing the token, and you can check it by <kbd>Ctrl+U</kbd>.
+      <a href="https://github.com/hyrious/botpg">github:hyrious/botpg</a>.<br>
+      Disclaimer: I promise not stealing the token, you can check it by <kbd>Ctrl+U</kbd>.
     </p>
   </div>
 </main>
@@ -67,18 +72,20 @@
       body{font-family:Alegreya Sans,sans-serif;max-width:1024px;margin:0 auto}
       h1,h2,h3,h4,h5,h6{font-weight:normal;font-family:Alegreya,serif}
       main{margin:0 24px}input,select{border:0;outline:0;border-bottom:2px solid}
-      input,select,option{font-family:Iosevka,monospace}#token{width:45ex}#method{width:32ex}
       button{background-color:white;border:2px solid;outline:0;font-family:Iosevka,monospace}
       button:enabled:active{background-color:black;color:white;border-color:black}
-      @media(max-width:768px){label,#token,#method{display:block;width:100%;margin:8px 0}}
-      pre{max-width:100%;overflow-x:auto;overflow-y:hidden;margin-top:0}pre,code{white-space:pre-wrap}
+      input,select,option{font-family:Iosevka,monospace}#input{width:100%;height:2em;margin:8px 0}
+      #token{width:45ex}#method{width:100%}#token:invalid{background-color:pink}
+      #footer{font-family:Alegreya,serif}a{color:black}a:active{color:grey}
+      pre{max-width:100%;overflow-x:auto;overflow-y:hidden;margin-top:0}
+      pre,code{white-space:pre-wrap}a{font-family:Alegreya Sans,sans-serif}
       pre,code,summary{font-family:Iosevka,monospace}details{margin-top:1em}
       summary{user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      summary:focus{outline:0}#input{width:100%;height:2em;margin:8px 0}
-      .flex{display:flex}.flex>*{width:100%;margin:4px}body{transition:filter 1s ease}
-      .storage{background-color:rgba(0,0,0,.1);white-space:nowrap;padding:2px}
-      @media(max-width:768px){.storage{display:block;text-align:center}}
-      #footer{font-family:Alegreya,serif}
+      summary:focus{outline:0}.flex{display:flex}.flex>*{width:100%;height:100%;padding:0 4px}
+      .storage{white-space:nowrap}.center{display:flex;justify-content:center;align-items:center}
+      @media(max-width:768px){label,.label,#token,#method{display:block;width:100%;margin:8px 0}
+      .storage{display:block;text-align:center}.response{display:block}}.m4{margin:4px}
+      .storage>code{margin:4px 0}#post,#save{padding:4px}
     `);
     const importJs = async (...urls) => Promise.all(urls.map(url => new Promise(resolve => {
       const script = document.createElement('script');
@@ -232,7 +239,7 @@
       button.onclick = () => {
         let next = details.nextElementSibling;
         while (next) {
-          next.dataset.index -= 1;
+          next.dataset.index--;
           next = next.nextElementSibling;
         }
         historyElement.removeChild(details)
