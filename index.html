@@ -5,7 +5,6 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="shortcut icon" href="https://core.telegram.org/favicon.ico" type="image/x-icon">
-<base target="_blank">
 <body>
 
 <main>
@@ -25,26 +24,31 @@
       </div>
     </div>
     <label class="m4">input</label>
-    <div class="m4"><div id="input">{}</div></div>
+    <div class="m4" id="input">{}</div>
   </div>
   <div class="flex">
     <button id="post" class="m4" disabled>POST</button>
     <button id="save" class="m4" disabled>SAVE</button>
   </div>
-  <div>
+  <div class="flex response fix">
     <details open>
       <summary>output <span id="loading">loading...</span></summary>
       <pre><code id="output" class="json"></code></pre>
     </details>
+    <details>
+      <summary>document <span id="loading-doc">loading...</span></summary>
+      <div id="doc"></div>
+    </details>
   </div>
-  <div id="history"></div>
+  <div id="history" class="flex"></div>
   <div id="footer">
     <p>
       API Document:
-      <a href="https://core.telegram.org/bots/api">core.telegram.org/bots/api</a><br>
+      <a href="https://core.telegram.org/bots/api" target="_blank">core.telegram.org/bots/api</a><br>
       This page is hosted at
-      <a href="https://github.com/hyrious/botpg">github:hyrious/botpg</a>.<br>
-      Disclaimer: I promise not stealing the token, you can check it by <kbd>Ctrl+U</kbd>.
+      <a href="https://github.com/hyrious/botpg" target="_blank">github:hyrious/botpg</a>.<br>
+      Disclaimer: I promise not stealing the token, you can check it by
+      <kbd>Ctrl+U</kbd>.
     </p>
   </div>
 </main>
@@ -72,20 +76,29 @@
       body{font-family:Alegreya Sans,sans-serif;max-width:1024px;margin:0 auto}
       h1,h2,h3,h4,h5,h6{font-weight:normal;font-family:Alegreya,serif}
       main{margin:0 24px}input,select{border:0;outline:0;border-bottom:2px solid}
+      details{margin:4px}#history pre{margin-bottom:0}#doc{padding:0 0 32px 0}
+      blockquote{margin:0;padding-left:1em;border-left:2px solid}
       button{background-color:white;border:2px solid;outline:0;font-family:Iosevka,monospace}
       button:enabled:active{background-color:black;color:white;border-color:black}
       input,select,option{font-family:Iosevka,monospace}#input{width:100%;height:2em;margin:8px 0}
       #token{width:45ex}#method{width:100%}#token:invalid{background-color:pink}
-      #footer{font-family:Alegreya,serif}a{color:black}a:active{color:grey}
+      #footer{font-family:Alegreya,serif;margin:20px 0}a{color:black}a:active{color:grey}
       pre{max-width:100%;overflow-x:auto;overflow-y:hidden;margin-top:0}
       pre,code{white-space:pre-wrap}a{font-family:Alegreya Sans,sans-serif}
-      pre,code,summary{font-family:Iosevka,monospace}details{margin-top:1em}
+      pre,code,summary{font-family:Iosevka,monospace}details{width:100%}
       summary{user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       summary:focus{outline:0}.flex{display:flex}.flex>*{width:100%;height:100%;padding:0 4px}
       .storage{white-space:nowrap}.center{display:flex;justify-content:center;align-items:center}
+      .m4{margin:4px}.storage>code{margin:4px 0}#post,#save{padding:4px}
+      #doc{max-height:320px;overflow-y:auto}#doc td{padding:4px}
+      #history{display:flex;justify-content:space-between;flex-wrap:wrap}
+      #history>details{flex:1 0 1;max-width:calc(50% - 8px);padding-right:0}
       @media(max-width:768px){label,.label,#token,#method{display:block;width:100%;margin:8px 0}
-      .storage{display:block;text-align:center}.response{display:block}}.m4{margin:4px}
-      .storage>code{margin:4px 0}#post,#save{padding:4px}
+      .storage{display:block;text-align:center}.response{flex-flow:column}
+      .response>*{margin:0;padding:0}.label{order:-1}.m4{margin:0}
+      .fix>details{margin:4px;padding-left:4px}
+      #history>details,.flex>details{max-width:calc(100% - 8px)}
+      #post{margin-right:-2px;z-index:1}#save{margin-left:-2px}}
     `);
     const importJs = async (...urls) => Promise.all(urls.map(url => new Promise(resolve => {
       const script = document.createElement('script');
@@ -112,6 +125,7 @@
     const loadingElement = document.getElementById('loading');
     const outputElement = document.getElementById('output');
     const historyElement = document.getElementById('history');
+    const docElement = document.getElementById('doc');
     // pretty-bytes | MIT | Sindre Sorhus | https://github.com/sindresorhus/pretty-bytes
     const prettyBytes = (number) => {
       const UNITS =  [ 'B', 'kB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB' ];
@@ -126,6 +140,64 @@
       const n = Object.keys(localStorage).map(_ => localStorage[_].length).reduce((a, b) => a + b);
       storageElement.textContent = prettyBytes(n);
     };
+    const parseHTML = (html) => {
+      const template = document.createElement('template');
+      template.innerHTML = html;
+      return template.content.cloneNode(true);
+    };
+    const scanA = (html) => {
+      const as = new DOMParser().parseFromString(html, 'text/html').getElementsByTagName('a');
+      return [...as].map(_ => _.textContent);
+    };
+    const doc = {
+      enabled: false,
+      data: null,
+      update () {
+        if (!doc.enabled) return;
+        let askedTypes = [];
+        const method = methodElement.value;
+        const { desc, params } = doc.data.methods.find(_ => _.name === method);
+        askedTypes.push(...scanA(desc));
+        const paramTable = params.map(p => {
+          const { name, type, required, desc } = p;
+          askedTypes.push(...scanA(type));
+          askedTypes.push(...scanA(desc));
+          const innerHTML = [required ? '*' : '', name,
+            type.replace(/ or /g, ' or<br>')].map(_ => `<td>${_}</td>`).join('');
+          return `<tr title=${JSON.stringify(parseHTML(desc).textContent)}>${innerHTML}</tr>`;
+        }).join('');
+        askedTypes = [...new Set(askedTypes.filter(_ => _.match(/^[A-Z]/)))];
+        askedTypes = askedTypes.filter(type => doc.data.types.find(_ => _.name === type));
+        let flag = false;
+        do {
+          flag = false;
+          for (const type of askedTypes) {
+            const x = doc.data.types.find(_ => _.name === type);
+            const ns = x.fields.map(_ => parseHTML(_.type).textContent);
+            for (const n of ns) {
+              if (n && !askedTypes.includes(n) && doc.data.types.find(_ => _.name === n)) {
+                askedTypes.push(n)
+                flag = true;
+              }
+            }
+          }
+        } while (flag);
+        const types = askedTypes.map(type => {
+          const x = doc.data.types.find(_ => _.name === type);
+          if (!x) return '';
+          const id = JSON.stringify(type.toLowerCase());
+          const { desc, fields } = x;
+          const fieldTable = fields.map(({ name, type }) =>
+            `<tr><td>${name}</td><td>${type}</td></tr>`).join('');
+          return `<h3 id=${id}>${type}</h3>${desc.join('')}<table>${fieldTable}</table>`;
+        }).join('');
+        while (docElement.firstChild) docElement.firstChild.remove();
+        docElement.appendChild(parseHTML(
+          `<h3>${method}</h3>${desc.join('')}<table>${paramTable}</table>${types}`
+        ));
+      }
+    };
+    methodElement.addEventListener('change', doc.update);
     const methods = `getUpdates setWebhook deleteWebhook getWebhookInfo sendMessage
     forwardMessage sendPhoto sendAudio sendDocument sendVideo sendAnimation
     sendVoice sendVideoNote sendMediaGroup sendLocation editMessageLiveLocation
@@ -262,10 +334,69 @@
       localStorage['history'] = JSON.stringify(history);
       updateStorageCounter();
       save(text);
+      outputElement.textContent = '';
+      saveElement.disabled = true;
     });
     updateStorageCounter();
     loadingElement.style.display = 'none';
     postElement.disabled = false;
     console.log('ready.');
+    const fetchDocument = async () => {
+      const { data: rawDocument } = await axios.get('https://botpg-6cd8qlt7i5ju.runkit.sh');
+      const root = new DOMParser().parseFromString(rawDocument, 'text/html');
+      const methods = [], types = [], bases = [];
+      let h4s = [...root.getElementsByTagName('h4')];
+      h4s.splice(0, 3);
+      h4s = h4s.filter(_ => !_.textContent.match(' '));
+      for (let h4 of h4s) {
+        const name = h4.textContent;
+        const isMethod = !!name.match(/^[a-z]/);
+        let p = h4.nextElementSibling, desc = [], fields = [], params = [];
+        while (p.tagName === 'P' || p.tagName === 'BLOCKQUOTE') {
+            desc.push(p.outerHTML);
+            p = p.nextElementSibling;
+        }
+        let flag = false;
+        switch (p.tagName) {
+          case 'H4': break;
+          case 'UL':
+            bases.push({ name, desc, children: [...p.children].map(_ => _.textContent) });
+            flag = true;
+            break;
+          case 'TABLE':
+            let trs = [...p.getElementsByTagName('tr')]; trs.shift();
+            for (const tr of trs) {
+                const tds = [...tr.getElementsByTagName('td')].map(_ => _.innerHTML);
+                if (isMethod) {
+                    params.push({ name: tds[0], type: tds[1],
+                      required: tds[2] === 'Yes', desc: tds[3] });
+                } else {
+                    fields.push({ name: tds[0], type: tds[1], desc: tds[3] });
+                }
+            }
+            p = p.nextElementSibling;
+            while (p.tagName === 'P' || p.tagName === 'BLOCKQUOTE') {
+                desc.push(p.outerHTML);
+                p = p.nextElementSibling;
+            }
+            break;
+          default:
+            throw 'its impossible, please report an issue to hyrious@outlook.com';
+        }
+        if (flag)
+          continue;
+        if (isMethod)
+          methods.push({ name, desc, params });
+        else
+          types.push({ name, desc, fields });
+      }
+      localStorage['doc'] = JSON.stringify({ methods, types, bases });
+    };
+    if (!localStorage['doc']) await fetchDocument();
+    doc.data = JSON.parse(localStorage['doc']);
+    doc.enabled = true;
+    doc.update();
+    document.getElementById('loading-doc').style.display = 'none';
+    console.log('loaded document.', doc);
   })();
 </script>
