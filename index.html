@@ -43,11 +43,11 @@
   <div id="history" class="flex"></div>
   <div id="footer">
     <p>
+      Hosted by
+      <a href="https://github.com/hyrious/botpg" target="_blank">GitHub Pages</a>.<br>
       API Document:
       <a href="https://core.telegram.org/bots/api" target="_blank">core.telegram.org/bots/api</a><br>
-      This page is hosted at
-      <a href="https://github.com/hyrious/botpg" target="_blank">github:hyrious/botpg</a>.<br>
-      Disclaimer: I promise not stealing the token, you can check it by
+      Disclaimer: I promise not stealing the token. You can check it by
       <kbd>Ctrl+U</kbd>.
     </p>
   </div>
@@ -85,7 +85,7 @@
       #footer{font-family:Alegreya,serif;margin:20px 0}a{color:black}a:active{color:grey}
       pre{max-width:100%;overflow-x:auto;overflow-y:hidden;margin-top:0}
       pre,code{white-space:pre-wrap}a{font-family:Alegreya Sans,sans-serif}
-      pre,code,summary{font-family:Iosevka,monospace}details{width:100%}
+      pre,code,summary{font-family:Iosevka,monospace}details{width:100%}summary{height:1.2em}
       summary{user-select:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       summary:focus{outline:0}.flex{display:flex}.flex>*{width:100%;height:100%;padding:0 4px}
       .storage{white-space:nowrap}.center{display:flex;justify-content:center;align-items:center}
@@ -154,37 +154,55 @@
       data: null,
       update () {
         if (!doc.enabled) return;
-        let askedTypes = [];
+        let askedTypes = [], requiredParams = {};
         const method = methodElement.value;
         const { desc, params } = doc.data.methods.find(_ => _.name === method);
         askedTypes.push(...scanA(desc));
         const paramTable = params.map(p => {
           const { name, type, required, desc } = p;
+          const defaultParams = { 'Integer': 0, 'Integer or String': 0, 'String': '', 'Float number': .0 };
+          if (required) {
+            const value = (typeof defaultParams[type] === 'undefined') ? null : defaultParams[type];
+            requiredParams[name] = value;
+          }
           askedTypes.push(...scanA(type));
           askedTypes.push(...scanA(desc));
           const innerHTML = [required ? '*' : '', name,
             type.replace(/ or /g, ' or<br>')].map(_ => `<td>${_}</td>`).join('');
           return `<tr title=${JSON.stringify(parseHTML(desc).textContent)}>${innerHTML}</tr>`;
         }).join('');
+        editor.setValue(JSON.stringify(requiredParams, null, 2), -1);
         askedTypes = [...new Set(askedTypes.filter(_ => _.match(/^[A-Z]/)))];
-        askedTypes = askedTypes.filter(type => doc.data.types.find(_ => _.name === type));
+        const { types, bases } = doc.data;
+        askedTypes = askedTypes.filter(type =>
+          types.find(_ => _.name === type) || bases.find(_ => _.name === type));
         let flag = false;
         do {
           flag = false;
           for (const type of askedTypes) {
-            const x = doc.data.types.find(_ => _.name === type);
+            const x = types.find(_ => _.name === type);
+            if (!x) continue;
             const ns = x.fields.map(_ => parseHTML(_.type).textContent);
+            x.fields.forEach(_ => ns.push(...scanA(_.type)));
             for (const n of ns) {
-              if (n && !askedTypes.includes(n) && doc.data.types.find(_ => _.name === n)) {
-                askedTypes.push(n)
-                flag = true;
+              if (n && !askedTypes.includes(n)) {
+                if (types.find(_ => _.name === n) || bases.find(_ => _.name === n)) {
+                  askedTypes.push(n)
+                  flag = true;
+                }
               }
             }
           }
         } while (flag);
-        const types = askedTypes.map(type => {
-          const x = doc.data.types.find(_ => _.name === type);
-          if (!x) return '';
+        const baseTypes = askedTypes.filter(type => bases.find(_ => _.name === type));
+        askedTypes = askedTypes.filter(type => types.find(_ => _.name === type))
+        for (const type of baseTypes) {
+          const { desc, children } = bases.find(_ => _.name === type);
+          askedTypes.push(...children);
+        }
+        const typesString = askedTypes.map(type => {
+          const x = types.find(_ => _.name === type);
+          if (!x) return;
           const id = JSON.stringify(type.toLowerCase());
           const { desc, fields } = x;
           const fieldTable = fields.map(({ name, type }) =>
@@ -193,7 +211,7 @@
         }).join('');
         while (docElement.firstChild) docElement.firstChild.remove();
         docElement.appendChild(parseHTML(
-          `<h3>${method}</h3>${desc.join('')}<table>${paramTable}</table>${types}`
+          `<h3>${method}</h3>${desc.join('')}<table>${paramTable}</table>${typesString}`
         ));
       }
     };
