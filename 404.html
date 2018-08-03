@@ -151,6 +151,11 @@
     getStickerSet uploadStickerFile createNewStickerSet addStickerToSet setStickerPositionInSet
     deleteStickerFromSet answerInlineQuery sendInvoice answerShippingQuery answerPreCheckoutQuery
     setPassportDataErrors sendGame setGameScore getGameHighScores`.split(/\s+/);
+    const methodsArray = methods.map(method => async (payload = {}) => {
+      const url = 'https://api.telegram.org/bot' + $('token').value + '/' + method;
+      const { data } = await axios.post(url, payload);
+      return data;
+    });
     let offset = 0, timeout = 15, startOrStop = true;
     const updateQueue = [];
     const getUpdate = async () => {
@@ -187,7 +192,7 @@
     };
     $('start').addEventListener('click', async function (event) {
       if (startOrStop) {
-        let _update, count = $('count').value, variable = $('var').value;
+        let count = $('count').value, variable = $('var').value;
         if (count < 1) {
           console.log('error: <count> too small, should be > 0')
           return;
@@ -201,12 +206,20 @@
         startOrStop = false;
         source = axios.CancelToken.source();
         let automata = editor.getValue();
-        automata = automata.replace('break', 'stop();');
+        automata = automata.replace(/break[;\n]/g, 'stop();');
         while (count-- && !startOrStop) {
-          _update = await getUpdate();
-          if (_update)
-            Function(variable, 'count', 'stop', `"use strict";${automata}`)(_update, count, stop);
+          $('_count').textContent = count;
+          const x = await getUpdate();
+          if (x) {
+            try {
+              Function(variable, 'count', 'stop', ...methods,
+                `"use strict";(async()=>{${automata}})()`)(x, count, stop, ...methodsArray);
+            } catch (error) {
+              console.log(error.message);
+            }
+          }
         }
+        stop();
       } else {
         stop();
       }
