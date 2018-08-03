@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Bot API Playground</title>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="shortcut icon" href="https://core.telegram.org/favicon.ico" type="image/x-icon">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/6.0.0/sanitize.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Alegreya%7CAlegreya+Sans">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/grayscale.min.css">
+<style>
+  body{font-family:Alegreya Sans,sans-serif;max-width:1024px;margin:0 auto}
+  main{margin:0 24px}pre{max-width:100%;overflow-x:auto;overflow-y:hidden;margin-top:0}
+  input,textarea{border:0;outline:0}
+  textarea,.ace_editor{width:calc(100% - 2ex);display:block;margin-left:2ex}
+  pre{margin:0}pre,code,pre>a,code>a,textarea,input{font-family:Iosevka,monospace}
+  pre,code{white-space:pre-wrap}a{font-family:Alegreya Sans,sans-serif}
+  h1,h2,h3,h4,h5,h6{font-weight:normal;font-family:Alegreya,serif}
+  a{color:black}a:active{color:grey}textarea{background-color:rgba(0,0,0,.05)}
+  #pre>code>input{width:3em;text-align:center}input:invalid{background-color:pink}
+  .responsive{display:flex}.responsive>*{flex:1}
+  @media(max-width:768px){.responsive{display:block}}footer{margin:1em 0}
+  #output::before{content:'#output';display:block;margin-bottom:8px;color:grey}
+  #output>code::before{content:'<· ';color:rgba(0,0,0,.2)}
+  #output>code{margin:8px;line-height:1.4em}
+  #output>code>span{margin-right:1ex}.undefined{color:grey}
+  .boolean,.number{color:blue}.string{color:red}.object,.function{font-style:italic}
+  #start{font-family:Iosevka,monospace;background-color:white;color:black}
+  #start{display:block;width:100%;margin:8px 0;border:2px solid;padding:2px;outline:0}
+  #start:disabled{color:grey;border-color:grey}
+  #start:enabled:active{color:white;background-color:black;border-color:black}
+  #token{width:45ex;border-bottom:2px solid}
+  @media(max-width:768px){#token{width:100%}}
+  .ace_editor{margin-left:calc(2ex - 4px)}
+</style>
+<body>
+
+<main>
+  <h1><a href="index.html">Botpg</a> Automata</h1>
+  <label>token <input id="token" pattern="\d{9}:[\w-]{35}" required></label>
+  <div class="responsive">
+    <div>
+      <pre id="pre"><code class="hljs js"><span class="hljs-keyword">let</span> <input value="x" id="var" pattern="[a-zA-Z_]\w*"  required>, count = <input type="number" value="10" id="count">;
+<span class="hljs-keyword">while</span> (count--) { <span class="hljs-comment">// count = <span id="_count"></span></span>
+  <span id="_var">x</span> = <span class="hljs-keyword">await</span> getUpdate(); <span class="hljs-comment">// returns an </span><a href="https://core.telegram.org/bots/api#update">Update</a><span class="hljs-comment"> object</span>
+  <span class="hljs-comment">// your automata here</span><textarea id="automata">console.log(x);</textarea>}</code></pre>
+      <button id="start" disabled>start!</button>
+    </div>
+    <pre id="output"></pre>
+  </div>
+  <footer>
+    Hosted by
+    <a href="https://github.com/hyrious/botpg" target="_blank">GitHub Pages</a>.<br>
+    API Document:
+    <a href="https://core.telegram.org/bots/api" target="_blank">core.telegram.org/bots/api</a><br>
+    Disclaimer: I promise not stealing the token. You can check it by
+    <kbd>Ctrl+U</kbd>.
+  </footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.18.0/axios.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.3.3/ace.js"></script>
+<script>
+  (async () => {
+    const $ = id => document.getElementById(id);
+    const preserveValues = (...elements) => {
+      for (const element of elements) {
+        element.addEventListener('change', function (event) {
+          localStorage[element.id] = this.value;
+        });
+        if (localStorage[element.id]) {
+          element.value = localStorage[element.id];
+        }
+      }
+    };
+    preserveValues($('token'), $('count'), $('automata'));
+    $('var').addEventListener('input', function (event) {
+      $('_var').textContent = this.value;
+    });
+    console._log = console.log || function () {};
+    const C = (tag, obj = null, ...children) => {
+      const ret = Object.assign(document.createElement(tag), obj);
+      for (const child of children) ret.appendChild(child);
+      return ret;
+    };
+    const inspect = (obj, visited = new Set) => {
+      if (visited.has(obj))
+        return Array.isArray(obj) ? '[...]' : '{...}';
+      if (obj === null) return 'null';
+      if (typeof obj === 'object') {
+        visited.add(obj);
+        const pair = Array.isArray(obj) ? {
+          [0]: obj.length <= 1 ? '[' : `(${obj.length}) [`, [1]: ']' } : '{}';
+        let counter = 0;
+        return [pair[0], Object.keys(obj).map(_ => {
+          let value = inspect(obj[_], visited);
+          const isCirc = value === '[...]' || value === '{...}';
+          const j = counter++, i = Number(_);
+          if (Number.isFinite(i) && Array.isArray(obj)) {
+            if (i > j) {
+              value = 'empty' + (i - j === 1 ? '' : ` x ${i - j}`) + ', ' + value;
+              counter = i + 1;
+            }
+            return value;
+          } else return `${_}: ${value}`;
+        }).join(', '), pair[1]].join(' ');
+      } else if (typeof obj === 'string') {
+        return JSON.stringify(obj);
+      } else {
+        return String(obj);
+      }
+    };
+    console.log = function (...args) {
+      const ret = console._log(...args);
+      const code = C('code');
+      for (const arg of args)
+        code.appendChild(C('span',
+          { classList: (typeof arg), textContent: inspect(arg) }));
+      code.appendChild(document.createTextNode('\n'));
+      $('output').appendChild(code);
+      return ret;
+    };
+    const editor = ace.edit($('automata'), {
+      mode: 'ace/mode/javascript',
+      theme: 'ace/theme/textmate',
+      tabSize: 2,
+      showGutter: false,
+      wrap: true,
+      fontSize: 14,
+      showPrintMargin: false,
+      highlightActiveLine: false,
+      maxLines: 30,
+      minLines: 1,
+      value: $('automata').value
+    });
+    localStorage['automata'] = localStorage['automata'] || 'console.log(x);';
+    editor.setValue(localStorage['automata'], Infinity);
+    editor.on('change', function () { localStorage['automata'] = editor.getValue(); });
+    editor.focus();
+    axios.defaults.timeout = 15000;
+    let source;
+    const methods = `getMe getUpdates setWebhook deleteWebhook getWebhookInfo sendMessage
+    forwardMessage sendPhoto sendAudio sendDocument sendVideo sendAnimation
+    sendVoice sendVideoNote sendMediaGroup sendLocation editMessageLiveLocation
+    stopMessageLiveLocation sendVenue sendContact sendChatAction getUserProfilePhotos
+    getFile kickChatMember unbanChatMember restrictChatMember promoteChatMember
+    exportChatInviteLink setChatPhoto deleteChatPhoto setChatTitle setChatDescription
+    pinChatMessage unpinChatMessage leaveChat getChat getChatAdministrators getChatMembersCount
+    getChatMember setChatStickerSet deleteChatStickerSet answerCallbackQuery editMessageText
+    editMessageCaption editMessageMedia editMessageReplyMarkup deleteMessage sendSticker
+    getStickerSet uploadStickerFile createNewStickerSet addStickerToSet setStickerPositionInSet
+    deleteStickerFromSet answerInlineQuery sendInvoice answerShippingQuery answerPreCheckoutQuery
+    setPassportDataErrors sendGame setGameScore getGameHighScores`.split(/\s+/);
+    let offset = 0, timeout = 15, startOrStop = true;
+    const updateQueue = [];
+    const getUpdate = async () => {
+      if (updateQueue.length)
+        return await updateQueue.shift();
+      const token = $('token').value;
+      if (!token.match($('token').pattern)) {
+        console.log('error: <token> is invalid');
+        source.cancel('invalid token');
+        return;
+      }
+      const url = 'https://api.telegram.org/bot' + token + '/getUpdates';
+      try {
+        const { data: { ok, result } } = await axios.post(url, { offset, timeout }, {
+          cancelToken: source.token
+        });
+        if (ok && result.length) {
+          offset = Math.max(...result.map(_ => _.update_id)) + 1;
+          updateQueue.push(...result);
+        }
+      } catch (error) {
+        if (axios.isCancel(error)) {
+          console.log(error.message);
+          return;
+        }
+      }
+      return await getUpdate();
+    };
+    $('start').disabled = false;
+    function stop () {
+      source.cancel("break by user");
+      $('start').textContent = 'start!';
+      startOrStop = true;
+    };
+    $('start').addEventListener('click', async function (event) {
+      if (startOrStop) {
+        let _update, count = $('count').value, variable = $('var').value;
+        if (count < 1) {
+          console.log('error: <count> too small, should be > 0')
+          return;
+        }
+        if (!variable.match($('var').pattern)) {
+          console.log('error: invalid variable name')
+          return;
+        }
+        while ($('output').firstChild) $('output').firstChild.remove();
+        this.textContent = 'stop!';
+        startOrStop = false;
+        source = axios.CancelToken.source();
+        let automata = editor.getValue();
+        automata = automata.replace('break', 'stop();');
+        while (count-- && !startOrStop) {
+          _update = await getUpdate();
+          if (_update)
+            Function(variable, 'count', 'stop', `"use strict";${automata}`)(_update, count, stop);
+        }
+      } else {
+        stop();
+      }
+    });
+  })();
+</script>
